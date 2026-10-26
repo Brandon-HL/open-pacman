@@ -1,0 +1,6 @@
+# Guía del repositorio
+
+- Juego estático en `src/`: abre `src/index.html` en un navegador para probarlo. No hay gestor de paquetes, build, linter ni suite de tests configurados; verifica los cambios jugando en el navegador.
+- `src/index.html` carga scripts clásicos, **en este orden**: `maze.js` → `game.js` → `render.js` → `main.js`. No usan módulos: comparten funciones y constantes globales; `main.js` inicia el bucle con `requestAnimationFrame`, gestiona teclado y pantallas.
+- `maze.js` define la cuadrícula 28×31 (`#` pared, `.` punto, espacio transitable, `-` puerta) y las posiciones iniciales. `createGame()` en `game.js` copia `MAZE` antes de consumir puntos; no modifiques el laberinto original durante la partida. `game.js` actualiza estado y movimiento; `render.js` dibuja el estado en el canvas de 560×620 (20 px por celda).
+- Hay skills locales opcionales en `.agents/skills/spec/` y `.agents/skills/spec-impl/` para definir e implementar especificaciones. Si se invocan, sigue sus `SKILL.md`: `/spec` guarda borradores en `specs/`; `/spec-impl` exige aprobación humana y, por defecto, crea una rama `spec-NN-slug` (configurable en `specs/.spec-config.yml`). No trates el flujo de specs como requisito para cualquier cambio.
