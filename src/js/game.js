@@ -13,6 +13,16 @@ const OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' };
 const PACMAN_SPEED = 0.125; // 1/8 celda/frame -> alinea cada 8 frames
 const GHOST_SPEED = 0.1;    // 1/10 celda/frame
 const GHOST_EXIT_TARGET = { x: 13, y: 11 };
+const PEN_MIN_X = 11;
+const PEN_MAX_X = 16;
+const PEN_MIN_Y = 13;
+const PEN_MAX_Y = 15;
+const PEN_WAYPOINTS = [
+  { x: 11, y: 13 },
+  { x: 16, y: 13 },
+  { x: 16, y: 15 },
+  { x: 11, y: 15 },
+];
 const PATROL_CORNERS = [
   { x: 1, y: 1 },
   { x: 26, y: 1 },
@@ -44,7 +54,7 @@ function createGame() {
       nextDir: null,
       speed: PACMAN_SPEED,
     },
-    ghosts: GHOST_STARTS.map( ( g ) => ( {
+    ghosts: GHOST_STARTS.map( ( g, i ) => ( {
       x: g.x,
       y: g.y,
       dir: 'up',
@@ -52,6 +62,7 @@ function createGame() {
       kind: g.kind,
       releaseDelay: g.releaseDelay,
       releaseState: 'espera',
+      penWaypointIndex: i % PEN_WAYPOINTS.length,
       patrolCornerIndex: 0,
     } ) ),
   };
@@ -160,6 +171,62 @@ function shortestGhostDirection( grid, startX, startY, targetX, targetY ) {
   return null;
 }
 
+function canMoveInPen( grid, x, y, dir ) {
+  const next = nextCell( grid, x, y, dir );
+  return next.x >= PEN_MIN_X && next.x <= PEN_MAX_X &&
+    next.y >= PEN_MIN_Y && next.y <= PEN_MAX_Y &&
+    canMove( grid, x, y, dir, 'ghost' );
+}
+
+function shortestPenDirection( grid, startX, startY, targetX, targetY ) {
+  const startKey = startX + ',' + startY;
+  const queue = [ { x: startX, y: startY, firstDir: null } ];
+  const visited = new Set( [ startKey ] );
+
+  for ( let i = 0; i < queue.length; i++ ) {
+    const current = queue[ i ];
+    if ( current.x === targetX && current.y === targetY ) {
+      return current.firstDir;
+    }
+
+    for ( const dir of Object.keys( DIRS ) ) {
+      if ( !canMoveInPen( grid, current.x, current.y, dir ) ) continue;
+      const next = nextCell( grid, current.x, current.y, dir );
+      const key = next.x + ',' + next.y;
+      if ( visited.has( key ) ) continue;
+      visited.add( key );
+      queue.push( {
+        x: next.x,
+        y: next.y,
+        firstDir: current.firstDir || dir,
+      } );
+    }
+  }
+
+  return null;
+}
+
+function moveGhostInPen( game, g ) {
+  const grid = game.grid;
+  let target = PEN_WAYPOINTS[ g.penWaypointIndex ];
+
+  if ( g.x === target.x && g.y === target.y ) {
+    g.penWaypointIndex = ( g.penWaypointIndex + 1 ) % PEN_WAYPOINTS.length;
+    target = PEN_WAYPOINTS[ g.penWaypointIndex ];
+  }
+
+  const choices = Object.keys( DIRS ).filter(
+    ( dir ) => canMoveInPen( grid, g.x, g.y, dir )
+  );
+  g.dir = shortestPenDirection( grid, g.x, g.y, target.x, target.y ) ||
+    choices[ 0 ] || g.dir;
+
+  if ( !canMoveInPen( grid, g.x, g.y, g.dir ) ) return;
+  const d = DIRS[ g.dir ];
+  g.x += d.x * g.speed;
+  g.y += d.y * g.speed;
+}
+
 function ambusherTarget( game ) {
   const grid = game.grid;
   const p = game.pacman;
@@ -223,10 +290,7 @@ function moveGhostToExit( game, g ) {
     return;
   }
 
-  if ( g.y > target.y ) g.dir = 'up';
-  else if ( g.x < target.x ) g.dir = 'right';
-  else if ( g.x > target.x ) g.dir = 'left';
-  else g.dir = 'up';
+  g.dir = shortestGhostDirection( game.grid, g.x, g.y, target.x, target.y ) || g.dir;
 }
 
 function moveGhost( game, g ) {
@@ -234,7 +298,18 @@ function moveGhost( game, g ) {
   const width = grid[ 0 ].length;
 
   if ( g.releaseState === 'espera' ) {
-    if ( game.elapsedFrames < g.releaseDelay ) return;
+    if ( game.elapsedFrames < g.releaseDelay ) {
+      if ( aligned( g.x ) && aligned( g.y ) ) {
+        g.x = Math.round( g.x );
+        g.y = Math.round( g.y );
+        moveGhostInPen( game, g );
+      } else {
+        const d = DIRS[ g.dir ];
+        g.x += d.x * g.speed;
+        g.y += d.y * g.speed;
+      }
+      return;
+    }
     g.releaseState = 'salida';
   }
 
@@ -280,6 +355,7 @@ function resetPositions( game ) {
     g.dir = 'up';
     g.releaseDelay = GHOST_STARTS[ i ].releaseDelay;
     g.releaseState = 'espera';
+    g.penWaypointIndex = i % PEN_WAYPOINTS.length;
     g.patrolCornerIndex = 0;
   } );
 }
