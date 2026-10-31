@@ -195,19 +195,22 @@ function decideGhost( game, g ) {
     ( dir ) => dir !== OPPOSITE[ g.dir ] && canMove( grid, g.x, g.y, dir, 'ghost' )
   );
   // Sin salida (callejon): permitir el giro de 180.
-  const choices = options.length ? options : [ '' + OPPOSITE[ g.dir ] ];
+  const reverse = OPPOSITE[ g.dir ];
+  const choices = options.length ? options : (
+    canMove( grid, g.x, g.y, reverse, 'ghost' ) ? [ reverse ] : []
+  );
 
   if ( g.kind === 'hunter' ) {
     const px = Math.round( p.x );
     const py = Math.round( p.y );
-    g.dir = shortestGhostDirection( grid, g.x, g.y, px, py ) || choices[ 0 ];
+    g.dir = shortestGhostDirection( grid, g.x, g.y, px, py ) || choices[ 0 ] || g.dir;
   } else if ( g.kind === 'ambusher' ) {
     const target = ambusherTarget( game );
-    g.dir = shortestGhostDirection( grid, g.x, g.y, target.x, target.y ) || choices[ 0 ];
+    g.dir = shortestGhostDirection( grid, g.x, g.y, target.x, target.y ) || choices[ 0 ] || g.dir;
   } else if ( g.kind === 'patroller' ) {
     const target = patrollerTarget( g );
-    g.dir = shortestGhostDirection( grid, g.x, g.y, target.x, target.y ) || choices[ 0 ];
-  } else {
+    g.dir = shortestGhostDirection( grid, g.x, g.y, target.x, target.y ) || choices[ 0 ] || g.dir;
+  } else if ( g.kind === 'erratic' && choices.length ) {
     g.dir = choices[ Math.floor( Math.random() * choices.length ) ];
   }
 }

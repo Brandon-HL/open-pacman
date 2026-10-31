@@ -55,7 +55,7 @@ const GHOST_STARTS = [
   { x: 13, y: 14, kind: 'hunter', releaseDelay: 0 }, // cazador
   { x: 14, y: 14, kind: 'ambusher', releaseDelay: 120 }, // emboscador
   { x: 13, y: 15, kind: 'patroller', releaseDelay: 240 }, // patrullero
-  { x: 14, y: 15, kind: 'random', releaseDelay: 360 }, // erratico
+  { x: 14, y: 15, kind: 'erratic', releaseDelay: 360 }, // erratico
 ];
 
 window.MAZE = MAZE;
