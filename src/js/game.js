@@ -299,7 +299,19 @@ function moveGhostToExit( game, g ) {
   g.dir = shortestGhostDirection( game.grid, g.x, g.y, target.x, target.y ) || g.dir;
 }
 
-function moveGhost( game, g ) {
+function moveGhostToBox( game, g, ghostIndex ) {
+  const target = GHOST_STARTS[ ghostIndex ];
+
+  if ( g.x === target.x && g.y === target.y ) {
+    g.releaseState = 'espera';
+    g.releaseDelay = game.elapsedFrames;
+    return;
+  }
+
+  g.dir = shortestGhostDirection( game.grid, g.x, g.y, target.x, target.y ) || g.dir;
+}
+
+function moveGhost( game, g, ghostIndex ) {
   const grid = game.grid;
   const width = grid[ 0 ].length;
 
@@ -335,6 +347,22 @@ function moveGhost( game, g ) {
     return;
   }
 
+  if ( g.releaseState === 'regresando' ) {
+    if ( aligned( g.x ) && aligned( g.y ) ) {
+      g.x = Math.round( g.x );
+      g.y = Math.round( g.y );
+      moveGhostToBox( game, g, ghostIndex );
+      if ( g.releaseState === 'espera' ) return;
+      if ( !canMove( grid, g.x, g.y, g.dir, 'ghost' ) ) return;
+    }
+
+    const d = DIRS[ g.dir ];
+    g.x += d.x * g.speed;
+    g.y += d.y * g.speed;
+    wrapTunnel( g, width );
+    return;
+  }
+
   if ( aligned( g.x ) && aligned( g.y ) ) {
     g.x = Math.round( g.x );
     g.y = Math.round( g.y );
@@ -355,6 +383,7 @@ function resetPositions( game ) {
   p.dir = 'left';
   p.nextDir = null;
   game.elapsedFrames = 0;
+  game.fotogramasPoderRestantes = 0;
   game.ghosts.forEach( ( g, i ) => {
     g.x = GHOST_STARTS[ i ].x;
     g.y = GHOST_STARTS[ i ].y;
@@ -372,11 +401,20 @@ function collides( a, b ) {
 
 function update( game ) {
   game.elapsedFrames++;
+  if ( game.fotogramasPoderRestantes > 0 ) game.fotogramasPoderRestantes--;
   movePacman( game );
-  game.ghosts.forEach( ( g ) => moveGhost( game, g ) );
+  game.ghosts.forEach( ( g, i ) => moveGhost( game, g, i ) );
 
-  for ( const g of game.ghosts ) {
+  for ( let i = 0; i < game.ghosts.length; i++ ) {
+    const g = game.ghosts[ i ];
     if ( collides( game.pacman, g ) ) {
+      if ( g.releaseState === 'regresando' ) continue;
+      if ( game.fotogramasPoderRestantes > 0 && g.releaseState === 'activo' ) {
+        game.score += 200;
+        g.releaseState = 'regresando';
+        g.dir = OPPOSITE[ g.dir ] || 'up';
+        continue;
+      }
       game.lives--;
       if ( game.lives <= 0 ) {
         game.state = 'lost';
