@@ -12,6 +12,7 @@ const OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' };
 
 const PACMAN_SPEED = 0.125; // 1/8 celda/frame -> alinea cada 8 frames
 const GHOST_SPEED = 0.1;    // 1/10 celda/frame
+const POWER_DURATION = 360;
 const GHOST_EXIT_TARGET = { x: 13, y: 11 };
 const PEN_MIN_X = 11;
 const PEN_MAX_X = 16;
@@ -38,13 +39,16 @@ function createGame() {
   grid[ PACMAN_START.y ][ PACMAN_START.x ] = 0;
 
   let dots = 0;
-  for ( const row of grid ) for ( const v of row ) if ( v === 2 ) dots++;
+  for ( const row of grid ) {
+    for ( const v of row ) if ( v === 2 || v === 4 ) dots++;
+  }
 
   return {
     state: 'start',
     score: 0,
     lives: 3,
     elapsedFrames: 0,
+    fotogramasPoderRestantes: 0,
     dotsRemaining: dots,
     grid,
     pacman: {
@@ -116,10 +120,12 @@ function movePacman( game ) {
       p.dir = p.nextDir;
       p.nextDir = null;
     }
-    // Comer dot.
-    if ( grid[ p.y ][ p.x ] === 2 ) {
+    // Comer dot o power pellet.
+    if ( grid[ p.y ][ p.x ] === 2 || grid[ p.y ][ p.x ] === 4 ) {
+      const esPowerPellet = grid[ p.y ][ p.x ] === 4;
       grid[ p.y ][ p.x ] = 0;
-      game.score += 10;
+      game.score += esPowerPellet ? 50 : 10;
+      if ( esPowerPellet ) game.fotogramasPoderRestantes = POWER_DURATION;
       game.dotsRemaining--;
     }
     // Si no puede seguir, se detiene en la celda.
