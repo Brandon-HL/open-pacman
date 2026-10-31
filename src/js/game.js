@@ -12,6 +12,7 @@ const OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' };
 
 const PACMAN_SPEED = 0.125; // 1/8 celda/frame -> alinea cada 8 frames
 const GHOST_SPEED = 0.1;    // 1/10 celda/frame
+const GHOST_EXIT_TARGET = { x: 13, y: 11 };
 
 // Crea una partida nueva. Copia MAZE (pristino) a game.grid para poder comer
 // dots sin destruir el original, y reiniciar.
@@ -27,6 +28,7 @@ function createGame() {
     state: 'start',
     score: 0,
     lives: 3,
+    elapsedFrames: 0,
     dotsRemaining: dots,
     grid,
     pacman: {
@@ -42,6 +44,8 @@ function createGame() {
       dir: 'up',
       speed: GHOST_SPEED,
       kind: g.kind,
+      releaseDelay: g.releaseDelay,
+      releaseState: 'espera',
     } ) ),
   };
 }
@@ -141,9 +145,44 @@ function decideGhost( game, g ) {
   }
 }
 
+function moveGhostToExit( game, g ) {
+  const target = GHOST_EXIT_TARGET;
+
+  if ( g.x === target.x && g.y === target.y ) {
+    g.releaseState = 'activo';
+    return;
+  }
+
+  if ( g.y > target.y ) g.dir = 'up';
+  else if ( g.x < target.x ) g.dir = 'right';
+  else if ( g.x > target.x ) g.dir = 'left';
+  else g.dir = 'up';
+}
+
 function moveGhost( game, g ) {
   const grid = game.grid;
   const width = grid[ 0 ].length;
+
+  if ( g.releaseState === 'espera' ) {
+    if ( game.elapsedFrames < g.releaseDelay ) return;
+    g.releaseState = 'salida';
+  }
+
+  if ( g.releaseState === 'salida' ) {
+    if ( aligned( g.x ) && aligned( g.y ) ) {
+      g.x = Math.round( g.x );
+      g.y = Math.round( g.y );
+      moveGhostToExit( game, g );
+      if ( g.releaseState === 'activo' ) return;
+      if ( !canMove( grid, g.x, g.y, g.dir, 'ghost' ) ) return;
+    }
+
+    const d = DIRS[ g.dir ];
+    g.x += d.x * g.speed;
+    g.y += d.y * g.speed;
+    wrapTunnel( g, width );
+    return;
+  }
 
   if ( aligned( g.x ) && aligned( g.y ) ) {
     g.x = Math.round( g.x );
@@ -164,10 +203,13 @@ function resetPositions( game ) {
   p.y = PACMAN_START.y;
   p.dir = 'left';
   p.nextDir = null;
+  game.elapsedFrames = 0;
   game.ghosts.forEach( ( g, i ) => {
     g.x = GHOST_STARTS[ i ].x;
     g.y = GHOST_STARTS[ i ].y;
     g.dir = 'up';
+    g.releaseDelay = GHOST_STARTS[ i ].releaseDelay;
+    g.releaseState = 'espera';
   } );
 }
 
@@ -176,6 +218,7 @@ function collides( a, b ) {
 }
 
 function update( game ) {
+  game.elapsedFrames++;
   movePacman( game );
   game.ghosts.forEach( ( g ) => moveGhost( game, g ) );
 
