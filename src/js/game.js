@@ -12,6 +12,7 @@ const OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' };
 
 const PACMAN_SPEED = 0.125; // 1/8 celda/frame -> alinea cada 8 frames
 const GHOST_SPEED = 0.1;    // 1/10 celda/frame
+const POWER_DURATION = 360;
 const GHOST_EXIT_TARGET = { x: 13, y: 11 };
 const PEN_MIN_X = 11;
 const PEN_MAX_X = 16;
@@ -38,13 +39,16 @@ function createGame() {
   grid[ PACMAN_START.y ][ PACMAN_START.x ] = 0;
 
   let dots = 0;
-  for ( const row of grid ) for ( const v of row ) if ( v === 2 ) dots++;
+  for ( const row of grid ) {
+    for ( const v of row ) if ( v === 2 || v === 4 ) dots++;
+  }
 
   return {
     state: 'start',
     score: 0,
     lives: 3,
     elapsedFrames: 0,
+    fotogramasPoderRestantes: 0,
     dotsRemaining: dots,
     grid,
     pacman: {
@@ -62,6 +66,7 @@ function createGame() {
       kind: g.kind,
       releaseDelay: g.releaseDelay,
       releaseState: 'espera',
+      esperaPorPoder: false,
       penWaypointIndex: i % PEN_WAYPOINTS.length,
       patrolCornerIndex: 0,
     } ) ),
@@ -102,6 +107,28 @@ function wrapTunnel( a, width ) {
   }
 }
 
+function advanceGhost( g, speed ) {
+  const d = DIRS[ g.dir ];
+  if ( d.x ) {
+    const target = d.x > 0 ? Math.floor( g.x ) + 1 : Math.ceil( g.x ) - 1;
+    const next = g.x + d.x * speed;
+    if ( ( d.x > 0 && next >= target ) || ( d.x < 0 && next <= target ) ) {
+      g.x = target;
+      return;
+    }
+    g.x = next;
+    return;
+  }
+
+  const target = d.y > 0 ? Math.floor( g.y ) + 1 : Math.ceil( g.y ) - 1;
+  const next = g.y + d.y * speed;
+  if ( ( d.y > 0 && next >= target ) || ( d.y < 0 && next <= target ) ) {
+    g.y = target;
+    return;
+  }
+  g.y = next;
+}
+
 function movePacman( game ) {
   const p = game.pacman;
   const grid = game.grid;
@@ -116,10 +143,12 @@ function movePacman( game ) {
       p.dir = p.nextDir;
       p.nextDir = null;
     }
-    // Comer dot.
-    if ( grid[ p.y ][ p.x ] === 2 ) {
+    // Comer dot o power pellet.
+    if ( grid[ p.y ][ p.x ] === 2 || grid[ p.y ][ p.x ] === 4 ) {
+      const esPowerPellet = grid[ p.y ][ p.x ] === 4;
       grid[ p.y ][ p.x ] = 0;
-      game.score += 10;
+      game.score += esPowerPellet ? 50 : 10;
+      if ( esPowerPellet ) game.fotogramasPoderRestantes = POWER_DURATION;
       game.dotsRemaining--;
     }
     // Si no puede seguir, se detiene en la celda.
@@ -169,6 +198,28 @@ function shortestGhostDirection( grid, startX, startY, targetX, targetY ) {
   }
 
   return null;
+}
+
+function ghostDistance( grid, startX, startY, targetX, targetY ) {
+  const startKey = startX + ',' + startY;
+  const queue = [ { x: startX, y: startY, distance: 0 } ];
+  const visited = new Set( [ startKey ] );
+
+  for ( let i = 0; i < queue.length; i++ ) {
+    const current = queue[ i ];
+    if ( current.x === targetX && current.y === targetY ) return current.distance;
+
+    for ( const dir of Object.keys( DIRS ) ) {
+      if ( !canMove( grid, current.x, current.y, dir, 'ghost' ) ) continue;
+      const next = nextCell( grid, current.x, current.y, dir );
+      const key = next.x + ',' + next.y;
+      if ( visited.has( key ) ) continue;
+      visited.add( key );
+      queue.push( { x: next.x, y: next.y, distance: current.distance + 1 } );
+    }
+  }
+
+  return -1;
 }
 
 function canMoveInPen( grid, x, y, dir ) {
@@ -267,6 +318,25 @@ function decideGhost( game, g ) {
     canMove( grid, g.x, g.y, reverse, 'ghost' ) ? [ reverse ] : []
   );
 
+  if ( game.fotogramasPoderRestantes > 0 ) {
+    const px = Math.round( p.x );
+    const py = Math.round( p.y );
+    let mejorDistancia = -1;
+    let mejorDireccion = null;
+
+    for ( const dir of choices ) {
+      const next = nextCell( grid, g.x, g.y, dir );
+      const distancia = ghostDistance( grid, next.x, next.y, px, py );
+      if ( distancia > mejorDistancia ) {
+        mejorDistancia = distancia;
+        mejorDireccion = dir;
+      }
+    }
+
+    g.dir = mejorDireccion || choices[ 0 ] || g.dir;
+    return;
+  }
+
   if ( g.kind === 'hunter' ) {
     const px = Math.round( p.x );
     const py = Math.round( p.y );
@@ -293,12 +363,28 @@ function moveGhostToExit( game, g ) {
   g.dir = shortestGhostDirection( game.grid, g.x, g.y, target.x, target.y ) || g.dir;
 }
 
-function moveGhost( game, g ) {
+function moveGhostToBox( game, g, ghostIndex ) {
+  const target = GHOST_STARTS[ ghostIndex ];
+
+  if ( g.x === target.x && g.y === target.y ) {
+    g.releaseState = 'espera';
+    g.releaseDelay = game.elapsedFrames;
+    g.esperaPorPoder = true;
+    return;
+  }
+
+  g.dir = shortestGhostDirection( game.grid, g.x, g.y, target.x, target.y ) || g.dir;
+}
+
+function moveGhost( game, g, ghostIndex ) {
   const grid = game.grid;
   const width = grid[ 0 ].length;
+  const velocidad = game.fotogramasPoderRestantes > 0 && g.releaseState === 'activo' ?
+    0.05 : g.speed;
 
   if ( g.releaseState === 'espera' ) {
-    if ( game.elapsedFrames < g.releaseDelay ) {
+    if ( game.elapsedFrames < g.releaseDelay ||
+      ( g.esperaPorPoder && game.fotogramasPoderRestantes > 0 ) ) {
       if ( aligned( g.x ) && aligned( g.y ) ) {
         g.x = Math.round( g.x );
         g.y = Math.round( g.y );
@@ -310,6 +396,7 @@ function moveGhost( game, g ) {
       }
       return;
     }
+    g.esperaPorPoder = false;
     g.releaseState = 'salida';
   }
 
@@ -322,9 +409,21 @@ function moveGhost( game, g ) {
       if ( !canMove( grid, g.x, g.y, g.dir, 'ghost' ) ) return;
     }
 
-    const d = DIRS[ g.dir ];
-    g.x += d.x * g.speed;
-    g.y += d.y * g.speed;
+        advanceGhost( g, velocidad );
+    wrapTunnel( g, width );
+    return;
+  }
+
+  if ( g.releaseState === 'regresando' ) {
+    if ( aligned( g.x ) && aligned( g.y ) ) {
+      g.x = Math.round( g.x );
+      g.y = Math.round( g.y );
+      moveGhostToBox( game, g, ghostIndex );
+      if ( g.releaseState === 'espera' ) return;
+      if ( !canMove( grid, g.x, g.y, g.dir, 'ghost' ) ) return;
+    }
+
+    advanceGhost( g, velocidad );
     wrapTunnel( g, width );
     return;
   }
@@ -336,9 +435,7 @@ function moveGhost( game, g ) {
     if ( !canMove( grid, g.x, g.y, g.dir, 'ghost' ) ) return;
   }
 
-  const d = DIRS[ g.dir ];
-  g.x += d.x * g.speed;
-  g.y += d.y * g.speed;
+  advanceGhost( g, velocidad );
   wrapTunnel( g, width );
 }
 
@@ -349,12 +446,14 @@ function resetPositions( game ) {
   p.dir = 'left';
   p.nextDir = null;
   game.elapsedFrames = 0;
+  game.fotogramasPoderRestantes = 0;
   game.ghosts.forEach( ( g, i ) => {
     g.x = GHOST_STARTS[ i ].x;
     g.y = GHOST_STARTS[ i ].y;
     g.dir = 'up';
     g.releaseDelay = GHOST_STARTS[ i ].releaseDelay;
     g.releaseState = 'espera';
+    g.esperaPorPoder = false;
     g.penWaypointIndex = i % PEN_WAYPOINTS.length;
     g.patrolCornerIndex = 0;
   } );
@@ -366,11 +465,20 @@ function collides( a, b ) {
 
 function update( game ) {
   game.elapsedFrames++;
+  if ( game.fotogramasPoderRestantes > 0 ) game.fotogramasPoderRestantes--;
   movePacman( game );
-  game.ghosts.forEach( ( g ) => moveGhost( game, g ) );
+  game.ghosts.forEach( ( g, i ) => moveGhost( game, g, i ) );
 
-  for ( const g of game.ghosts ) {
+  for ( let i = 0; i < game.ghosts.length; i++ ) {
+    const g = game.ghosts[ i ];
     if ( collides( game.pacman, g ) ) {
+      if ( g.releaseState === 'regresando' ) continue;
+      if ( game.fotogramasPoderRestantes > 0 && g.releaseState === 'activo' ) {
+        game.score += 200;
+        g.releaseState = 'regresando';
+        g.dir = OPPOSITE[ g.dir ] || 'up';
+        continue;
+      }
       game.lives--;
       if ( game.lives <= 0 ) {
         game.state = 'lost';
