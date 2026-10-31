@@ -11,7 +11,7 @@
 
 - Un pellet en cada esquina transitable: `(1,1)`, `(26,1)`, `(26,29)` y `(1,29)`, en lugar del punto habitual.
 - Cada pellet concede 50 puntos y activa el poder durante 360 fotogramas; comer otro reinicia ese plazo.
-- Mientras dura el poder, los fantasmas fuera de la caja son grises, se mueven a `0,075` celdas por fotograma y eligen rutas que maximicen su distancia por caminos a Pac-Man.
+- Mientras dura el poder, los fantasmas fuera de la caja son grises, se mueven a `0,05` celdas por fotograma y eligen rutas que maximicen su distancia por caminos a Pac-Man.
 - Devorar un fantasma concede 200 puntos. Este vuelve caminando a su posición inicial en la caja, representado solo por ojos inofensivos.
 - Tras llegar, espera al menos 120 fotogramas **y** hasta que termine el poder antes de iniciar su salida. Los fantasmas que no hayan sido devorados conservan su secuencia de salida.
 - Perder una vida cancela el poder, pero no repone los pellets consumidos. Una partida nueva repone los cuatro.
@@ -38,7 +38,7 @@ Cada paso debe mantener el juego ejecutable abriendo `src/index.html`.
 
 - [ ] Cada partida nueva muestra exactamente cuatro pellets en las coordenadas indicadas.
 - [ ] Cada pellet suma 50 puntos, desaparece al comerse y activa o renueva 360 fotogramas de poder.
-- [ ] Los fantasmas comestibles son grises, huyen y se mueven a `0,075` celdas por fotograma; después recuperan color, conducta y velocidad normales.
+- [ ] Los fantasmas comestibles son grises, huyen y se mueven a `0,05` celdas por fotograma; después recuperan color, conducta y velocidad normales.
 - [ ] Devorar un fantasma suma 200 puntos y sus ojos regresan a la caja sin dañar a Pac-Man.
 - [ ] El fantasma devorado no inicia su salida hasta haber esperado 120 fotogramas desde su llegada **y** haber terminado el poder.
 - [ ] Perder una vida cancela el poder sin restaurar pellets; reiniciar la partida restaura los cuatro.
@@ -48,13 +48,13 @@ Cada paso debe mantener el juego ejecutable abriendo `src/index.html`.
 ## Decisiones tomadas y descartadas
 
 - **Sí:** regreso caminando como ojos, en lugar de retorno instantáneo.
-- **Sí:** huida gris a velocidad `0,075`, en lugar de mantener la conducta habitual o usar el azul clásico.
+- **Sí:** huida gris a velocidad `0,05`, la mitad de la velocidad normal, en lugar de mantener la conducta habitual o usar el azul clásico.
 - **Sí:** 200 puntos fijos por fantasma, sin multiplicador.
 - **Sí:** esperar tanto los 120 fotogramas como el fin del poder antes de volver a salir.
 
 ## Riesgos
 
-- Cambiar de `0,1` a `0,075` celdas por fotograma puede dejar a un fantasma entre centros de celda. El movimiento deberá ajustarse al centro antes de decidir un giro.
+- Cambiar de `0,1` a `0,05` celdas por fotograma puede dejar a un fantasma entre centros de celda. El movimiento deberá ajustarse al centro antes de decidir un giro.
 - El regreso debe considerar la puerta y el túnel en la búsqueda de rutas para no dejar fantasmas atrapados.
 
 ## Qué **no** está incluido en esta especificación

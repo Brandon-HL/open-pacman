@@ -380,7 +380,7 @@ function moveGhost( game, g, ghostIndex ) {
   const grid = game.grid;
   const width = grid[ 0 ].length;
   const velocidad = game.fotogramasPoderRestantes > 0 && g.releaseState === 'activo' ?
-    0.075 : g.speed;
+    0.05 : g.speed;
 
   if ( g.releaseState === 'espera' ) {
     if ( game.elapsedFrames < g.releaseDelay ||
