@@ -153,6 +153,24 @@ function shortestGhostDirection( grid, startX, startY, targetX, targetY ) {
   return null;
 }
 
+function ambusherTarget( game ) {
+  const grid = game.grid;
+  const p = game.pacman;
+  let x = Math.round( p.x );
+  let y = Math.round( p.y );
+  let lastValid = { x, y };
+
+  for ( let i = 0; i < 4; i++ ) {
+    if ( !canMove( grid, x, y, p.dir, 'ghost' ) ) break;
+    const next = nextCell( grid, x, y, p.dir );
+    x = next.x;
+    y = next.y;
+    lastValid = { x, y };
+  }
+
+  return lastValid;
+}
+
 function decideGhost( game, g ) {
   const grid = game.grid;
   const p = game.pacman;
@@ -167,6 +185,9 @@ function decideGhost( game, g ) {
     const px = Math.round( p.x );
     const py = Math.round( p.y );
     g.dir = shortestGhostDirection( grid, g.x, g.y, px, py ) || choices[ 0 ];
+  } else if ( g.kind === 'ambusher' ) {
+    const target = ambusherTarget( game );
+    g.dir = shortestGhostDirection( grid, g.x, g.y, target.x, target.y ) || choices[ 0 ];
   } else {
     g.dir = choices[ Math.floor( Math.random() * choices.length ) ];
   }
